@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Магазин жиж - Сухой Лог</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .header { background: linear-gradient(135deg, #ff6b6b, #ee5a24); color: white; padding: 20px; text-align: center; }
+        .nav { display: flex; background: #2d3436; padding: 10px; }
+        .nav button { flex: 1; padding: 12px; border: none; background: #636e72; color: white; cursor: pointer; }
+        .nav button.active { background: #e84393; }
+        .content { padding: 20px; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .product-card { border: 2px solid #ddd; border-radius: 10px; padding: 15px; margin: 10px 0; text-align: center; }
+        .product-card button { width: 100%; padding: 10px; background: #00b894; color: white; border: none; border-radius: 5px; margin-top: 10px; }
+        .cart-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #ddd; }
+        .notification { position: fixed; top: 20px; right: 20px; padding: 15px; background: #00b894; color: white; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Магазин жиж - Сухой Лог</h1>
+            <p>🚚 Доставка по городу | 📞 8-999-123-45-67</p>
+        </div>
+
+        <div class="nav">
+            <button onclick="showSection('catalog')" class="active">🛍️ Каталог</button>
+            <button onclick="showSection('cart')">🛒 Корзина</button>
+            <button onclick="showSection('contacts')">📞 Контакты</button>
+        </div>
+
+        <div class="content">
+            <div id="catalog" class="section active">
+                <h2>Популярные товары:</h2>
+                <div id="productsList"></div>
+            </div>
+
+            <div id="cart" class="section">
+                <h2>Ваш заказ:</h2>
+                <div id="cartItems"></div>
+                <div style="background: #ffeaa7; padding: 20px; margin-top: 20px; border-radius: 10px;">
+                    <h3>Итого: <span id="totalAmount">0</span> руб</h3>
+                    <button onclick="checkout()" style="width: 100%; padding: 15px; background: #00b894; color: white; border: none; border-radius: 8px; margin-top: 10px;">
+                        📞 Заказать по телефону
+                    </button>
+                </div>
+            </div>
+
+            <div id="contacts" class="section">
+                <h2>📞 Как сделать заказ:</h2>
+                <div style="background: #e3f2fd; padding: 20px; border-radius: 10px; margin: 10px 0;">
+                    <h3>Телефон: 8-999-123-45-67</h3>
+                    <p>1. Добавьте товары в корзину</p>
+                    <p>2. Нажмите "Заказать по телефону"</p>
+                    <p>3. Мы перезвоним для подтверждения</p>
+                    <p>🚚 Доставка по Сухому Логу - 30 минут</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const products = {
+            "hotspot_berry": { name: "HOTSPOT - Ежевика клюква бергамот", price: 400, stock: 5 },
+            "malasian_energy": { name: "MALASIAN - Энергетик", price: 400, stock: 5 },
+            "malasian_cola": { name: "MALASIAN - Кола ваниль", price: 400, stock: 5 },
+            "delta_redbull": { name: "D.L.T.A. - Redbull", price: 400, stock: 5 },
+            "husky_berries": { name: "ХАСКИ-МИШКИ - Бошки ягоды", price: 400, stock: 3 },
+        };
+
+        let cart = {};
+
+        function init() {
+            renderProducts();
+            loadCart();
+        }
+
+        function showSection(sectionId) {
+            document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
+            document.querySelectorAll('.nav button').forEach(button => button.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+            document.querySelector(`.nav button[onclick*="${sectionId}"]`).classList.add('active');
+        }
+
+        function renderProducts() {
+            const list = document.getElementById('productsList');
+            list.innerHTML = '';
+            
+            Object.keys(products).forEach(id => {
+                const product = products[id];
+                const div = document.createElement('div');
+                div.className = 'product-card';
+                div.innerHTML = `
+                    <h3>${product.name}</h3>
+                    <div style="color: #e84393; font-size: 1.3em; font-weight: bold; margin: 10px 0;">${product.price} руб</div>
+                    <div style="color: ${product.stock > 0 ? '#00b894' : '#d63031'}; font-weight: bold;">
+                        ${product.stock > 0 ? '✅ В наличии' : '❌ Нет в наличии'}
+                    </div>
+                    <button onclick="addToCart('${id}')" ${product.stock === 0 ? 'disabled' : ''}>
+                        ${product.stock > 0 ? '🛒 Добавить в корзину' : 'Товар закончился'}
+                    </button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function loadCart() {
+            const saved = localStorage.getItem('cart');
+            if (saved) cart = JSON.parse(saved);
+            renderCart();
+        }
+
+        function addToCart(productId) {
+            if (products[productId].stock === 0) return;
+            
+            cart[productId] = (cart[productId] || 0) + 1;
+            products[productId].stock--;
+            localStorage.setItem('cart', JSON.stringify(cart));
+            renderProducts();
+            renderCart();
+            showNotification('Товар добавлен в корзину!');
+        }
+
+        function renderCart() {
+            const cartItems = document.getElementById('cartItems');
+            const totalAmount = document.getElementById('totalAmount');
+            
+            if (Object.keys(cart).length === 0) {
+                cartItems.innerHTML = '<p>Корзина пуста</p>';
+                totalAmount.textContent = '0';
+                return;
+            }
+
+            let total = 0;
+            let html = '';
+            
+            Object.keys(cart).forEach(id => {
+                if (products[id]) {
+                    const product = products[id];
+                    const quantity = cart[id];
+                    const sum = product.price * quantity;
+                    total += sum;
+                    
+                    html += `
+                        <div class="cart-item">
+                            <div>${product.name} × ${quantity}</div>
+                            <div>${sum} руб</div>
+                        </div>
+                    `;
+                }
+            });
+
+            cartItems.innerHTML = html;
+            totalAmount.textContent = total;
+        }
+
+        function checkout() {
+            if (Object.keys(cart).length === 0) {
+                showNotification('Корзина пуста!');
+                return;
+            }
+
+            let orderText = 'Заказ из магазина жиж:%0A';
+            let total = 0;
+            
+            Object.keys(cart).forEach(id => {
+                if (products[id]) {
+                    const product = products[id];
+                    const quantity = cart[id];
+                    const sum = product.price * quantity;
+                    total += sum;
+                    orderText += `- ${product.name} × ${quantity} = ${sum} руб%0A`;
+                }
+            });
+            
+            orderText += `%0AИтого: ${total} руб`;
+            
+            // Создаем ссылку для WhatsApp
+            const phone = '89991234567';
+            const whatsappUrl = `https://wa.me/${phone}?text=${orderText}`;
+            
+            // Открываем в новом окне
+            window.open(whatsappUrl, '_blank');
+            
+            showNotification('Открывается WhatsApp для отправки заказа!');
+        }
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Запускаем при загрузке
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
