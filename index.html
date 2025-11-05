@@ -646,7 +646,7 @@
                         <div class="delivery-option" onclick="selectDelivery('self')" id="deliverySelf">
                             <input type="radio" name="delivery" id="radioSelf"> 
                             <label for="radioSelf"><strong>✅ Самовывоз - БЕСПЛАТНО</strong><br>
-                            <small>Акция: 2 банки = 600₽, 3 банки = 900₽ и т.д.</small></label>
+                            <small>ул. Ленина, 82, Новопышминское, Свердловская обл.</small></label>
                         </div>
                         <div class="delivery-option" onclick="selectDelivery('city')" id="deliveryCity">
                             <input type="radio" name="delivery" id="radioCity">
@@ -755,6 +755,18 @@
                         </div>
                     </div>
 
+                    <!-- КНОПКА СБРОСА ТОВАРОВ -->
+                    <div style="background: #455a64; padding: 20px; border-radius: 15px; margin: 20px 0; text-align: center;">
+                        <h3>🔄 Сброс магазина</h3>
+                        <button class="btn-checkout" onclick="resetAllProducts()" 
+                                style="padding: 15px 30px; font-size: 16px; margin: 10px;">
+                            🔄 Вернуть все товары в продажу
+                        </button>
+                        <p style="color: #ccc; font-size: 0.9em; margin-top: 10px;">
+                            Вернет все товары в наличие и очистит историю заказов
+                        </p>
+                    </div>
+
                     <div id="ordersList">
                         <!-- Список заказов -->
                     </div>
@@ -776,12 +788,12 @@
         // Админ пароль
         const ADMIN_PASSWORD = 'admin123';
 
-        // Данные товаров - ВСЕ ТОВАРЫ ВОЗВРАЩЕНЫ В ПРОДАЖУ!
-        let products = {
+        // БАЗОВЫЕ ДАННЫЕ ТОВАРОВ - ВСЕ В НАЛИЧИИ!
+        const baseProducts = {
             "delta_chicken": { 
                 name: "D.L.T.A. - Грудка и корица", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "delta",
                 icon: "🍗",
                 description: "Смелый вкус копченой куриной грудки с теплыми нотами корицы",
@@ -790,7 +802,7 @@
             "delta_pear": { 
                 name: "D.L.T.A. - Груша и корица", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "delta",
                 icon: "🍐",
                 description: "Сочная спелая груша в объятиях ароматной корицы",
@@ -799,7 +811,7 @@
             "delta_irga1": { 
                 name: "D.L.T.A. - Со вкусом ирги", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "delta",
                 icon: "🍇",
                 description: "Нежная ирга с легкой кислинкой и ягодным послевкусием",
@@ -808,7 +820,7 @@
             "delta_irga2": { 
                 name: "D.L.T.A. - Со вкусом ирги", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "delta",
                 icon: "🍇",
                 description: "Уникальный вкус дикой ирги с медовыми нотками",
@@ -817,7 +829,7 @@
             "morozny_currant": { 
                 name: "МОРОЗНЫЙ ДЖО - Смородина хвоя и мята", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "morozny",
                 icon: "❄️",
                 description: "Освежающий микс черной смородины, хвойного леса и мята",
@@ -826,7 +838,7 @@
             "husky_kiwi": { 
                 name: "ХАСКИ-МИШКИ - Киви мята", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "husky",
                 icon: "🐺",
                 description: "Экзотический киви с прохладной мятой - идеальное сочетание",
@@ -835,7 +847,7 @@
             "husky_strawberry": { 
                 name: "ХАСКИ-МИШКИ - Клубника банан", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "husky",
                 icon: "🐺",
                 description: "Сладкая клубника и нежный банан в кремовой основе",
@@ -844,25 +856,16 @@
             "husky_berries": { 
                 name: "ХАСКИ-МИШКИ - Бошки ягоды", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "husky",
                 icon: "🐺",
                 description: "Микс лесных ягод с хвойными нотами и сладким послевкусием",
                 ingredients: "Лесные ягоды, хвоя, малина"
             },
-            "malasian_lime": { 
-                name: "MALASIAN - Лайм киви", 
-                price: 400, 
-                stock: 10, 
-                category: "malasian",
-                icon: "🥝",
-                description: "Тропический дуэт сочного лайма и спелого киви",
-                ingredients: "Лайм, киви, тропические фрукты"
-            },
             "malasian_grape": { 
                 name: "MALASIAN - Виноград мармелад", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "malasian",
                 icon: "🍇",
                 description: "Сладкий виноград в виде нежного мармелада",
@@ -871,7 +874,7 @@
             "malasian_passion": { 
                 name: "MALASIAN - Маракуйя зеленое яблоко", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "malasian",
                 icon: "🍏",
                 description: "Экзотическая маракуйя и хрустящее зеленое яблоко",
@@ -880,16 +883,16 @@
             "malasian_cherry": { 
                 name: "MALASIAN - Лист вишневый сок", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "malasian",
                 icon: "🍒",
                 description: "Насыщенный вишневый сок с нотами вишневого листа",
-                ingredients: "Вишня, вишневый лист, ягоды"
+                ingredients: "Вишня, вишневый листа, ягоды"
             },
             "malasian_raspberry": { 
                 name: "MALASIAN - Малина банан", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "malasian",
                 icon: "🍌",
                 description: "Ароматная малина и спелый банан в сливочной основе",
@@ -898,7 +901,7 @@
             "malasian_forest": { 
                 name: "MALASIAN - Красные лесные ягоды", 
                 price: 400, 
-                stock: 10, 
+                stock: 1, 
                 category: "malasian",
                 icon: "🌲",
                 description: "Букет красных лесных ягод: малина, земляника, брусника",
@@ -907,6 +910,7 @@
         };
 
         // Корзина и заказы
+        let products = {};
         let cart = {};
         let orders = [];
         let currentOrder = null;
@@ -917,14 +921,34 @@
 
         // Инициализация
         function init() {
-            loadProducts();
+            resetAllProducts(); // АВТОМАТИЧЕСКИ СБРАСЫВАЕМ ВСЕ ТОВАРЫ ПРИ ЗАПУСКЕ
             loadCart();
             loadAllOrders();
             renderProducts();
             selectDelivery('self');
             renderCart();
             renderUserOrders();
-            showNotification('Добро пожаловать в ЖИЖА МАРКЕТ! 🚀', 'success');
+            showNotification('Добро пожаловать в ЖИЖА МАРКЕТ! Все товары в наличии! 🚀', 'success');
+        }
+
+        // ФУНКЦИЯ СБРОСА ВСЕХ ТОВАРОВ
+        function resetAllProducts() {
+            products = JSON.parse(JSON.stringify(baseProducts)); // Копируем базовые товары
+            saveProducts();
+            // Очищаем корзину и заказы
+            cart = {};
+            orders = [];
+            confirmationCodes = {};
+            saveCart();
+            saveAllOrders();
+            saveConfirmationCodes();
+            
+            renderProducts();
+            renderCart();
+            if (isAdminLoggedIn) {
+                renderAdminStats();
+            }
+            showNotification('✅ Все товары возвращены в продажу! Магазин сброшен.', 'success');
         }
 
         // Загрузка всех заказов
@@ -948,6 +972,9 @@
             const savedProducts = localStorage.getItem('products');
             if (savedProducts) {
                 products = JSON.parse(savedProducts);
+            } else {
+                // Если нет сохраненных товаров, используем базовые
+                products = JSON.parse(JSON.stringify(baseProducts));
             }
         }
 
@@ -1375,7 +1402,7 @@
                 <div style="margin: 20px 0;">
                     <strong>Номер заказа:</strong> ${currentOrder.id} <br>
                     <strong>Количество товаров:</strong> ${currentOrder.itemCount} шт. <br>
-                    <strong>Тип доставки:</strong> ${currentOrder.deliveryType === 'self' ? 'Самовывоз' : 'Доставка'} <br>
+                    <strong>Тип доставка:</strong> ${currentOrder.deliveryType === 'self' ? 'Самовывоз' : 'Доставка'} <br>
                     <strong>Итоговая сумма:</strong> ${currentOrder.total} ₽
                 </div>
                 <h4>Состав заказа:</h4>
