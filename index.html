@@ -213,6 +213,21 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
 
+        .sold-out-badge {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: linear-gradient(135deg, #f44336, #d32f2f);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            border: 2px solid white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 2;
+        }
+
         .product-card button {
             width: 100%;
             padding: 15px;
@@ -712,6 +727,32 @@
                 <div class="order-summary" id="finalOrderSummary">
                     <!-- Финальные детали заказа -->
                 </div>
+                
+                <!-- ДОБАВЛЕННОЕ СООБЩЕНИЕ О ПРОВЕРКЕ -->
+                <div style="background: #e3f2fd; padding: 25px; border-radius: 20px; margin: 25px 0; border: 3px solid #2196f3;">
+                    <h3 style="color: #1976d2; text-align: center; margin-bottom: 15px;">🔄 Проверка оплаты</h3>
+                    <div style="text-align: center; font-size: 1.1em;">
+                        <p><strong>Мы проверяем вашу оплату по скриншоту</strong></p>
+                        <p>Обычно это занимает <strong>5-15 минут</strong></p>
+                        <p>После проверки мы свяжемся с вами для подтверждения</p>
+                    </div>
+                    
+                    <div style="background: #bbdefb; padding: 20px; border-radius: 15px; margin-top: 20px; text-align: center;">
+                        <h4 style="color: #1565c0; margin-bottom: 10px;">📞 Написать в Telegram</h4>
+                        <p style="font-size: 1.2em; font-weight: bold; color: #d32f2f;">
+                            @spank46
+                        </p>
+                        <p style="margin-top: 10px; color: #555;">
+                            Напишите нам для ускорения проверки или по любым вопросам
+                        </p>
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: #fff8e1; border-radius: 12px; border-left: 5px solid #ffa000;">
+                        <p style="color: #e65100; font-weight: bold;">💡 Важно:</p>
+                        <p style="margin-top: 8px;">Ожидайте ответа в Telegram о подтверждении оплаты. Как только оплата будет проверена, статус заказа изменится.</p>
+                    </div>
+                </div>
+                
                 <div class="cart-actions">
                     <button class="btn-checkout" onclick="showSection('catalog')">🛍️ Продолжить покупки</button>
                     <button class="btn-checkout" onclick="showSection('myOrders')" style="background: linear-gradient(135deg, #2196f3, #21cbf3);">
@@ -768,7 +809,7 @@
         const ADMIN_PASSWORD = 'admin123';
 
         // Данные товаров с красивыми описаниями
-        const products = {
+        let products = {
             // D.L.T.A.
             "delta_chicken": { 
                 name: "D.L.T.A. - Грудка и корица", 
@@ -815,7 +856,7 @@
                 category: "morozny",
                 icon: "❄️",
                 description: "Освежающий микс черной смородины, хвойного леса и мяты",
-                ingredients: "Смородина, хвоя, мята, ментол"
+                ingredients: "Смородина, хвоя, мята, ментol"
             },
             
             // ХАСКИ-МИШКИ
@@ -915,12 +956,26 @@
 
         // Инициализация
         function init() {
+            loadProducts();
             loadCart();
             renderProducts();
             selectDelivery('self');
             renderCart();
             renderUserOrders();
             showNotification('Добро пожаловать в ЖИЖА МАРКЕТ! 🚀', 'success');
+        }
+
+        // Загрузка продуктов из localStorage
+        function loadProducts() {
+            const savedProducts = localStorage.getItem('products');
+            if (savedProducts) {
+                products = JSON.parse(savedProducts);
+            }
+        }
+
+        // Сохранение продуктов в localStorage
+        function saveProducts() {
+            localStorage.setItem('products', JSON.stringify(products));
         }
 
         // Показать раздел
@@ -937,6 +992,10 @@
             
             if (sectionId === 'myOrders') {
                 renderUserOrders();
+            }
+            
+            if (sectionId === 'catalog') {
+                renderProducts();
             }
             
             if (event && event.target) {
@@ -1001,12 +1060,17 @@
                 productCard.className = `product-card ${product.category}`;
                 
                 let promoBadge = '';
+                let soldOutBadge = '';
+                
                 if (product.stock > 0) {
                     promoBadge = '<div class="promo-badge">🔥 Акция</div>';
+                } else {
+                    soldOutBadge = '<div class="sold-out-badge">❌ ПРОДАНО</div>';
                 }
                 
                 productCard.innerHTML = `
                     ${promoBadge}
+                    ${soldOutBadge}
                     <div class="brand-icon">${product.icon}</div>
                     <h3>${product.name}</h3>
                     <div class="flavor-description">${product.description}</div>
@@ -1358,10 +1422,16 @@
             localStorage.setItem('orders', JSON.stringify(orders));
             currentOrder = order;
 
-            // Обновляем количество товаров
+            // ОБНОВЛЯЕМ КОЛИЧЕСТВО ТОВАРОВ - СНИМАЕМ С ПРОДАЖИ КУПЛЕННЫЕ ЖИЖИ
             Object.keys(cart).forEach(productId => {
                 products[productId].stock -= cart[productId];
+                if (products[productId].stock < 0) {
+                    products[productId].stock = 0;
+                }
             });
+
+            // Сохраняем обновленные продукты
+            saveProducts();
 
             // Отправляем в Telegram
             sendOrderToTelegram(order);
@@ -1374,7 +1444,7 @@
             showSection('orderStatus');
             renderFinalOrderSummary();
 
-            showNotification('Заказ оформлен! Ожидайте подтверждения. 📦', 'success');
+            showNotification('Заказ оформлен! Купленные жижи сняты с продажи. 📦', 'success');
         }
 
         function renderFinalOrderSummary() {
@@ -1385,9 +1455,16 @@
                 <p><strong>Время заказа:</strong> ${currentOrder.timestamp}</p>
                 <p><strong>Итоговая сумма:</strong> ${currentOrder.total} ₽</p>
                 <p><strong>Тип получения:</strong> ${currentOrder.deliveryType === 'self' ? 'Самовывоз' : 'Доставка'}</p>
+                
                 <div style="background: #e8f5e9; padding: 15px; border-radius: 10px; margin-top: 15px;">
                     <strong>📞 Контакты:</strong><br>
                     Для уточнения деталей заказа свяжитесь с нами в Telegram: <strong>@spank46</strong>
+                </div>
+                
+                <div style="background: #fff3cd; padding: 15px; border-radius: 10px; margin-top: 15px; border-left: 4px solid #ffc107;">
+                    <strong>🔄 Проверка оплаты:</strong><br>
+                    Мы проверяем ваш скриншот оплаты. Обычно это занимает 5-15 минут.<br>
+                    <strong>Напишите @spank46 в Telegram</strong> для ускорения проверки.
                 </div>
             `;
         }
@@ -1451,7 +1528,7 @@ ${Object.keys(order.items).map(productId => {
             }
         }
 
-        // Админ статистика
+        // Админ статистика - ИСПРАВЛЕННАЯ ФУНКЦИЯ
         function renderAdminStats() {
             if (!isAdminLoggedIn) return;
 
@@ -1465,48 +1542,70 @@ ${Object.keys(order.items).map(productId => {
 
             // Список заказов
             const ordersList = document.getElementById('ordersList');
-            ordersList.innerHTML = '<h3>Последние заказы:</h3>';
+            ordersList.innerHTML = '<h3>Все заказы:</h3>';
 
             if (orders.length === 0) {
-                ordersList.innerHTML += '<p>Заказов пока нет</p>';
+                ordersList.innerHTML += '<p style="text-align: center; padding: 20px;">Заказов пока нет</p>';
                 return;
             }
 
-            orders.reverse().forEach((order, index) => {
-                if (index >= 10) return; // Показываем только 10 последних
-
+            // Показываем ВСЕ заказы (не только 10 последних)
+            orders.reverse().forEach(order => {
                 const orderElement = document.createElement('div');
                 orderElement.style.background = '#455a64';
                 orderElement.style.padding = '20px';
                 orderElement.style.borderRadius = '15px';
                 orderElement.style.margin = '15px 0';
-                orderElement.style.border = `3px solid ${order.status === 'completed' ? '#4caf50' : order.status === 'confirmed' ? '#2196f3' : '#ff9800'}`;
+                orderElement.style.border = `3px solid ${
+                    order.status === 'completed' ? '#4caf50' : 
+                    order.status === 'confirmed' ? '#2196f3' : '#ff9800'
+                }`;
+
+                // Детали заказа
+                let orderDetails = '';
+                Object.keys(order.items).forEach(productId => {
+                    const productName = products[productId] ? products[productId].name : productId;
+                    orderDetails += `<div style="margin: 3px 0;">• ${productName} × ${order.items[productId]}</div>`;
+                });
 
                 orderElement.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>#${order.id}</strong> - ${order.total} ₽
-                            <br>
-                            <small>${order.timestamp} • ${order.deliveryType === 'self' ? 'Самовывоз' : 'Доставка'}</small>
-                            <br>
-                            <span style="color: ${order.status === 'completed' ? '#4caf50' : order.status === 'confirmed' ? '#2196f3' : '#ff9800'}">
-                                ${order.status === 'completed' ? '✅ Выполнен' : order.status === 'confirmed' ? '✅ Подтвержден' : '⏳ Ожидает'}
+                    <div style="margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div>
+                                <strong style="font-size: 1.2em;">#${order.id}</strong> - ${order.total} ₽
+                            </div>
+                            <span style="color: ${
+                                order.status === 'completed' ? '#4caf50' : 
+                                order.status === 'confirmed' ? '#2196f3' : '#ff9800'
+                            }; font-weight: bold;">
+                                ${order.status === 'completed' ? '✅ Выполнен' : 
+                                  order.status === 'confirmed' ? '✅ Подтвержден' : '⏳ Ожидает'}
                             </span>
                         </div>
-                        <div>
-                            <button onclick="changeOrderStatus('${order.id}', 'confirmed')" 
-                                    style="padding: 10px 15px; background: #2196f3; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 2px;">
-                                ✅
-                            </button>
-                            <button onclick="changeOrderStatus('${order.id}', 'completed')" 
-                                    style="padding: 10px 15px; background: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 2px;">
-                                🚀
-                            </button>
-                            <button onclick="deleteOrder('${order.id}')" 
-                                    style="padding: 10px 15px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 2px;">
-                                🗑️
-                            </button>
+                        <div style="color: #ccc; font-size: 0.9em;">
+                            <div>📅 ${order.timestamp}</div>
+                            <div>🚚 ${order.deliveryType === 'self' ? 'Самовывоз' : 'Доставка (+100₽)'}</div>
                         </div>
+                    </div>
+                    
+                    <div style="background: #37474f; padding: 15px; border-radius: 10px; margin: 10px 0;">
+                        <strong style="color: #fff;">Состав заказа:</strong>
+                        ${orderDetails}
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button onclick="changeOrderStatus('${order.id}', 'confirmed')" 
+                                style="padding: 10px 15px; background: #2196f3; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; flex: 1;">
+                            ✅ Подтвердить
+                        </button>
+                        <button onclick="changeOrderStatus('${order.id}', 'completed')" 
+                                style="padding: 10px 15px; background: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; flex: 1;">
+                            🚀 Завершить
+                        </button>
+                        <button onclick="deleteOrder('${order.id}')" 
+                                style="padding: 10px 15px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; flex: 1;">
+                            🗑️ Удалить
+                        </button>
                     </div>
                 `;
 
@@ -1520,15 +1619,17 @@ ${Object.keys(order.items).map(productId => {
                 order.status = status;
                 localStorage.setItem('orders', JSON.stringify(orders));
                 renderAdminStats();
-                showNotification('Статус заказа обновлен!', 'success');
+                renderUserOrders();
+                showNotification(`Статус заказа #${orderId} изменен на "${status}"!`, 'success');
             }
         }
 
         function deleteOrder(orderId) {
-            if (confirm('Удалить этот заказ?')) {
+            if (confirm(`Удалить заказ #${orderId}?`)) {
                 orders = orders.filter(o => o.id !== orderId);
                 localStorage.setItem('orders', JSON.stringify(orders));
                 renderAdminStats();
+                renderUserOrders();
                 showNotification('Заказ удален!', 'error');
             }
         }
