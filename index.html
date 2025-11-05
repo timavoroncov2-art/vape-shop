@@ -921,7 +921,7 @@
 
         // Инициализация
         function init() {
-            resetAllProducts(); // АВТОМАТИЧЕСКИ СБРАСЫВАЕМ ВСЕ ТОВАРЫ ПРИ ЗАПУСКЕ
+            loadGlobalProducts(); // Загружаем глобальное состояние товаров
             loadCart();
             loadAllOrders();
             renderProducts();
@@ -929,12 +929,51 @@
             renderCart();
             renderUserOrders();
             showNotification('Добро пожаловать в ЖИЖА МАРКЕТ! Все товары в наличии! 🚀', 'success');
+            
+            // Запускаем синхронизацию товаров
+            startProductsSync();
+        }
+
+        // ЗАГРУЗКА ГЛОБАЛЬНОГО СОСТОЯНИЯ ТОВАРОВ
+        function loadGlobalProducts() {
+            const globalProducts = localStorage.getItem('global_products');
+            if (globalProducts) {
+                products = JSON.parse(globalProducts);
+            } else {
+                // Если нет глобальных товаров, создаем из базовых
+                products = JSON.parse(JSON.stringify(baseProducts));
+                saveGlobalProducts();
+            }
+        }
+
+        // СОХРАНЕНИЕ ГЛОБАЛЬНОГО СОСТОЯНИЯ ТОВАРОВ
+        function saveGlobalProducts() {
+            localStorage.setItem('global_products', JSON.stringify(products));
+        }
+
+        // СИНХРОНИЗАЦИЯ ТОВАРОВ МЕЖДУ ВКЛАДКАМИ
+        function startProductsSync() {
+            // Слушаем изменения в localStorage
+            window.addEventListener('storage', function(e) {
+                if (e.key === 'global_products') {
+                    loadGlobalProducts();
+                    renderProducts();
+                    renderCart();
+                    showNotification('🔄 Обновлены данные о товарах', 'success');
+                }
+            });
+            
+            // Периодически проверяем обновления
+            setInterval(() => {
+                loadGlobalProducts();
+                renderProducts();
+            }, 3000);
         }
 
         // ФУНКЦИЯ СБРОСА ВСЕХ ТОВАРОВ
         function resetAllProducts() {
             products = JSON.parse(JSON.stringify(baseProducts)); // Копируем базовые товары
-            saveProducts();
+            saveGlobalProducts(); // Сохраняем глобально
             // Очищаем корзину и заказы
             cart = {};
             orders = [];
@@ -965,22 +1004,6 @@
         // Сохранение кодов подтверждения
         function saveConfirmationCodes() {
             localStorage.setItem('confirmationCodes', JSON.stringify(confirmationCodes));
-        }
-
-        // Загрузка продуктов
-        function loadProducts() {
-            const savedProducts = localStorage.getItem('products');
-            if (savedProducts) {
-                products = JSON.parse(savedProducts);
-            } else {
-                // Если нет сохраненных товаров, используем базовые
-                products = JSON.parse(JSON.stringify(baseProducts));
-            }
-        }
-
-        // Сохранение продуктов
-        function saveProducts() {
-            localStorage.setItem('products', JSON.stringify(products));
         }
 
         // Показать раздел
@@ -1102,8 +1125,12 @@
 
         // Добавление в корзину
         function addToCart(productId) {
+            // ПЕРЕД добавлением проверяем актуальное состояние товара
+            loadGlobalProducts();
+            
             if (products[productId].stock === 0) {
                 showNotification('❌ Этот товар закончился!', 'error');
+                renderProducts(); // Обновляем отображение
                 return;
             }
 
@@ -1152,6 +1179,9 @@
                     removeFromCart(productId);
                     return;
                 }
+                
+                // ПЕРЕД изменением проверяем актуальное состояние
+                loadGlobalProducts();
                 
                 if (newQuantity > products[productId].stock) {
                     showNotification(`❌ Максимальное количество: ${products[productId].stock} шт.`, 'error');
@@ -1360,6 +1390,19 @@
                 return;
             }
 
+            // ПЕРЕД созданием заказа проверяем актуальность товаров
+            loadGlobalProducts();
+            
+            // Проверяем, что все товары еще в наличии
+            for (const productId in cart) {
+                if (products[productId].stock < cart[productId]) {
+                    showNotification(`❌ Товар "${products[productId].name}" закончился! Обновите корзину.`, 'error');
+                    renderProducts();
+                    renderCart();
+                    return;
+                }
+            }
+
             const { total, itemCount } = calculateTotal();
             const orderId = 'ORD' + Date.now();
             
@@ -1433,17 +1476,30 @@
 
             // Проверяем код
             if (currentOrder && code === currentOrder.confirmationCode) {
+                // ПЕРЕД списанием проверяем актуальность товаров
+                loadGlobalProducts();
+                
+                // Проверяем, что все товары еще в наличии
+                for (const productId in currentOrder.items) {
+                    if (products[productId].stock < currentOrder.items[productId]) {
+                        showNotification(`❌ Товар "${products[productId].name}" закончился! Заказ отменен.`, 'error');
+                        return;
+                    }
+                }
+                
                 // Списание товаров
                 Object.keys(currentOrder.items).forEach(productId => {
                     products[productId].stock -= currentOrder.items[productId];
                 });
+
+                // Сохраняем ГЛОБАЛЬНОЕ состояние товаров
+                saveGlobalProducts();
 
                 // Сохраняем заказ
                 currentOrder.status = 'completed';
                 currentOrder.confirmedAt = new Date().toLocaleString('ru-RU');
                 orders.push(currentOrder);
                 saveAllOrders();
-                saveProducts();
 
                 // Удаляем использованный код
                 delete confirmationCodes[currentOrder.id];
@@ -1590,20 +1646,8 @@ ${Object.keys(order.items).map(productId => {
 
         // Инициализация при загрузке
         document.addEventListener('DOMContentLoaded', function() {
-            init().then(() => {
-                setupOrdersListener();
-            });
+            init();
         });
-
-        function setupOrdersListener() {
-            // Слушатель для обновления заказов
-            setInterval(() => {
-                loadAllOrders();
-                if (isAdminLoggedIn) {
-                    renderAdminStats();
-                }
-            }, 5000);
-        }
 
     </script>
 </body>
