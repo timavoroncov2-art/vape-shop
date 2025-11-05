@@ -856,7 +856,7 @@
                 category: "morozny",
                 icon: "❄️",
                 description: "Освежающий микс черной смородины, хвойного леса и мяты",
-                ingredients: "Смородина, хвоя, мята, ментol"
+                ingredients: "Смородина, хвоя, мята, ментол"
             },
             
             // ХАСКИ-МИШКИ
@@ -1089,6 +1089,42 @@
             });
         }
 
+        // ИСПРАВЛЕННАЯ функция добавления в корзину
+        function addToCart(productId) {
+            console.log('Добавляем товар:', productId, 'В наличии:', products[productId].stock);
+            
+            // ПРОВЕРКА 1: Есть ли товар в наличии?
+            if (products[productId].stock === 0) {
+                showNotification('❌ Этот товар закончился!', 'error');
+                return;
+            }
+
+            // ПРОВЕРКА 2: Сколько уже в корзине?
+            const currentInCart = cart[productId] || 0;
+            console.log('Уже в корзине:', currentInCart);
+            
+            // ПРОВЕРКА 3: Можем ли добавить ещё один?
+            if (currentInCart >= products[productId].stock) {
+                showNotification(`❌ Максимальное количество: ${products[productId].stock} шт.`, 'error');
+                return;
+            }
+
+            // ЕСЛИ ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ - добавляем в корзину
+            if (cart[productId]) {
+                cart[productId]++;
+            } else {
+                cart[productId] = 1;
+            }
+
+            // НЕ СПИСЫВАЕМ С ПРОДАЖИ! Только при оформлении заказа
+            saveCart();
+            renderCart();
+            showNotification('✅ Товар добавлен в корзину! 🛒', 'success');
+            
+            console.log('После добавления - корзина:', cart);
+            console.log('После добавления - stock:', products[productId].stock);
+        }
+
         // Работа с корзиной
         function loadCart() {
             const savedCart = localStorage.getItem('cart');
@@ -1101,29 +1137,6 @@
             localStorage.setItem('cart', JSON.stringify(cart));
         }
 
-        function addToCart(productId) {
-            if (products[productId].stock === 0) {
-                showNotification('Этот товар закончился!', 'error');
-                return;
-            }
-
-            if (cart[productId]) {
-                cart[productId]++;
-            } else {
-                cart[productId] = 1;
-            }
-
-            // Проверяем, не превышает ли количество доступный запас
-            if (cart[productId] > products[productId].stock) {
-                cart[productId] = products[productId].stock;
-                showNotification(`Максимальное количество товара: ${products[productId].stock} шт.`, 'error');
-            }
-
-            saveCart();
-            renderCart();
-            showNotification('Товар добавлен в корзину! 🛒', 'success');
-        }
-
         function removeFromCart(productId) {
             delete cart[productId];
             saveCart();
@@ -1133,17 +1146,24 @@
 
         function updateQuantity(productId, change) {
             if (cart[productId]) {
-                cart[productId] += change;
+                const newQuantity = cart[productId] + change;
                 
-                if (cart[productId] <= 0) {
+                // ЕСЛИ количество стало 0 или меньше - удаляем
+                if (newQuantity <= 0) {
                     removeFromCart(productId);
-                } else if (cart[productId] > products[productId].stock) {
-                    cart[productId] = products[productId].stock;
-                    showNotification(`Максимальное количество: ${products[productId].stock} шт.`, 'error');
-                } else {
-                    saveCart();
-                    renderCart();
+                    return;
                 }
+                
+                // ЕСЛИ хотим больше чем есть в наличии - БЛОКИРУЕМ
+                if (newQuantity > products[productId].stock) {
+                    showNotification(`❌ Максимальное количество: ${products[productId].stock} шт.`, 'error');
+                    return;
+                }
+                
+                // ЕСЛИ всё ок - обновляем
+                cart[productId] = newQuantity;
+                saveCart();
+                renderCart();
             }
         }
 
@@ -1397,18 +1417,36 @@
             }
         }
 
-        // Подтверждение оплаты
+        // ВОССТАНОВЛЕНИЕ ЖИЖ ПРИ ОТМЕНЕ ЗАКАЗА
+        function restoreProductStock(productId, quantity) {
+            if (products[productId]) {
+                products[productId].stock += quantity;
+                saveProducts();
+                renderProducts();
+                console.log(`🔄 Восстановлено ${quantity} шт. товара ${productId}. Новый stock: ${products[productId].stock}`);
+            }
+        }
+
+        // ИСПРАВЛЕННАЯ функция подтверждения оплаты
         function confirmPayment() {
             if (!uploadedScreenshot) {
                 showNotification('Пожалуйста, загрузите скриншот чека!', 'error');
                 return;
             }
 
+            // ПРОВЕРКА: Есть ли товары в корзине?
+            if (Object.keys(cart).length === 0) {
+                showNotification('Корзина пуста!', 'error');
+                return;
+            }
+
             const { total, itemCount } = calculateTotal();
             const orderId = 'ORD' + Date.now();
+            
+            // СОЗДАЕМ ЗАКАЗ
             const order = {
                 id: orderId,
-                items: { ...cart },
+                items: { ...cart }, // копируем корзину
                 total: total,
                 deliveryType: deliveryType,
                 deliveryCost: deliveryCost,
@@ -1417,21 +1455,33 @@
                 status: 'pending'
             };
 
+            // ПРОВЕРКА: Хватает ли товаров перед списанием?
+            let canProceed = true;
+            Object.keys(cart).forEach(productId => {
+                if (cart[productId] > products[productId].stock) {
+                    showNotification(`❌ Товар "${products[productId].name}" закончился! Удалите из корзины.`, 'error');
+                    canProceed = false;
+                }
+            });
+
+            if (!canProceed) {
+                showNotification('❌ Некоторые товары закончились! Обновите корзину.', 'error');
+                return;
+            }
+
+            // ЕСЛИ ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ - списываем товары
+            Object.keys(cart).forEach(productId => {
+                products[productId].stock -= cart[productId];
+                console.log(`📦 Списано ${cart[productId]} шт. ${productId}. Осталось: ${products[productId].stock}`);
+            });
+
+            // Сохраняем изменения
+            saveProducts();
+
             // Сохраняем заказ
             orders.push(order);
             localStorage.setItem('orders', JSON.stringify(orders));
             currentOrder = order;
-
-            // ОБНОВЛЯЕМ КОЛИЧЕСТВО ТОВАРОВ - СНИМАЕМ С ПРОДАЖИ КУПЛЕННЫЕ ЖИЖИ
-            Object.keys(cart).forEach(productId => {
-                products[productId].stock -= cart[productId];
-                if (products[productId].stock < 0) {
-                    products[productId].stock = 0;
-                }
-            });
-
-            // Сохраняем обновленные продукты
-            saveProducts();
 
             // Отправляем в Telegram
             sendOrderToTelegram(order);
@@ -1440,11 +1490,10 @@
             cart = {};
             saveCart();
 
-            // Показываем статус заказа
+            // Показываем успех
             showSection('orderStatus');
             renderFinalOrderSummary();
-
-            showNotification('Заказ оформлен! Купленные жижи сняты с продажи. 📦', 'success');
+            showNotification('✅ Заказ оформлен! Жижи сняты с продажи. 📦', 'success');
         }
 
         function renderFinalOrderSummary() {
@@ -1528,7 +1577,7 @@ ${Object.keys(order.items).map(productId => {
             }
         }
 
-        // Админ статистика - ИСПРАВЛЕННАЯ ФУНКЦИЯ
+        // Админ статистика
         function renderAdminStats() {
             if (!isAdminLoggedIn) return;
 
@@ -1549,7 +1598,7 @@ ${Object.keys(order.items).map(productId => {
                 return;
             }
 
-            // Показываем ВСЕ заказы (не только 10 последних)
+            // Показываем ВСЕ заказы
             orders.reverse().forEach(order => {
                 const orderElement = document.createElement('div');
                 orderElement.style.background = '#455a64';
@@ -1602,9 +1651,9 @@ ${Object.keys(order.items).map(productId => {
                                 style="padding: 10px 15px; background: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; flex: 1;">
                             🚀 Завершить
                         </button>
-                        <button onclick="deleteOrder('${order.id}')" 
+                        <button onclick="cancelOrderAndRestoreStock('${order.id}')" 
                                 style="padding: 10px 15px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; flex: 1;">
-                            🗑️ Удалить
+                            ❌ Отменить
                         </button>
                     </div>
                 `;
@@ -1624,13 +1673,33 @@ ${Object.keys(order.items).map(productId => {
             }
         }
 
-        function deleteOrder(orderId) {
-            if (confirm(`Удалить заказ #${orderId}?`)) {
-                orders = orders.filter(o => o.id !== orderId);
-                localStorage.setItem('orders', JSON.stringify(orders));
-                renderAdminStats();
-                renderUserOrders();
-                showNotification('Заказ удален!', 'error');
+        // ФУНКЦИЯ ОТМЕНЫ ЗАКАЗА ДЛЯ АДМИНА С ВОССТАНОВЛЕНИЕМ ТОВАРОВ
+        function cancelOrderAndRestoreStock(orderId) {
+            if (confirm(`Отменить заказ #${orderId} и вернуть товары на склад?`)) {
+                const order = orders.find(o => o.id === orderId);
+                if (order) {
+                    // ВОЗВРАЩАЕМ ТОВАРЫ НА СКЛАД
+                    Object.keys(order.items).forEach(productId => {
+                        if (products[productId]) {
+                            products[productId].stock += order.items[productId];
+                            console.log(`🔄 Возвращено ${order.items[productId]} шт. ${productId}`);
+                        }
+                    });
+                    
+                    // Сохраняем изменения
+                    saveProducts();
+                    
+                    // Удаляем заказ
+                    orders = orders.filter(o => o.id !== orderId);
+                    localStorage.setItem('orders', JSON.stringify(orders));
+                    
+                    // Обновляем интерфейс
+                    renderProducts();
+                    renderAdminStats();
+                    renderUserOrders();
+                    
+                    showNotification(`✅ Заказ #${orderId} отменен. Товары возвращены на склад.`, 'success');
+                }
             }
         }
 
