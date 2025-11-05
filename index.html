@@ -449,6 +449,38 @@
             border: 2px solid #e8f5e9;
         }
 
+        .bank-card {
+            background: linear-gradient(135deg, #7b1fa2, #4a148c);
+            color: white;
+            padding: 25px;
+            border-radius: 20px;
+            margin: 20px 0;
+            text-align: center;
+            border: 3px solid #ffd600;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .bank-card h3 {
+            color: #ffd600;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        .card-number {
+            font-size: 1.8em;
+            font-weight: bold;
+            letter-spacing: 3px;
+            margin: 15px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .bank-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            font-size: 1.1em;
+        }
+
         .screenshot-upload {
             border: 3px dashed #4caf50;
             padding: 40px;
@@ -501,6 +533,43 @@
             margin-bottom: 25px;
             color: #bdbdbd;
         }
+
+        .important-note {
+            background: linear-gradient(135deg, #fff3e0, #ffecb3);
+            border: 3px solid #ff9800;
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: bold;
+            color: #e65100;
+        }
+
+        .order-status-badge {
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+            border: 2px solid #ffeaa7;
+        }
+
+        .status-confirmed {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+
+        .status-completed {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 2px solid #bee5eb;
+        }
     </style>
 </head>
 <body>
@@ -518,6 +587,7 @@
         <div class="nav">
             <button onclick="showSection('catalog')" class="active">🛍️ Каталог</button>
             <button onclick="showSection('cart')">🛒 Корзина</button>
+            <button onclick="showSection('myOrders')">📦 Мои заказы</button>
             <button onclick="showAdminSection()">⚙️ Админ</button>
         </div>
 
@@ -566,6 +636,14 @@
                 </div>
             </div>
 
+            <!-- Мои заказы -->
+            <div id="myOrders" class="section">
+                <h2 style="text-align: center; color: #d32f2f;">📦 Мои заказы</h2>
+                <div id="userOrdersList">
+                    <!-- Заказы пользователя -->
+                </div>
+            </div>
+
             <!-- Оформление заказа -->
             <div id="checkout" class="section">
                 <h2 style="text-align: center; color: #d32f2f;">📋 Подтверждение заказа</h2>
@@ -581,21 +659,38 @@
             <!-- Оплата -->
             <div id="payment" class="section">
                 <h2 style="text-align: center; color: #d32f2f;">💳 Оплата заказа</h2>
+                
+                <div class="important-note">
+                    ⚠️ ВНИМАНИЕ: ОПЛАТА ТОЛЬКО НА КАРТУ <strong>ВТБ</strong>
+                </div>
+
                 <div class="payment-info">
                     <h3>Реквизиты для оплаты:</h3>
-                    <div class="payment-details">
-                        <strong>Карта:</strong> 2200 2402 4830 5209<br>
-                        <strong>Получатель:</strong> Данил О.<br>
-                        <strong>Сумма к оплате:</strong> <span id="paymentAmount">0</span> ₽
+                    
+                    <div class="bank-card">
+                        <h3>💳 БАНКОВСКАЯ КАРТА ВТБ</h3>
+                        <div class="card-number">2200 2402 4830 5209</div>
+                        <div class="bank-info">
+                            <div><strong>Банк:</strong> ВТБ</div>
+                            <div><strong>Получатель:</strong> Данил О.</div>
+                        </div>
                     </div>
-                    <p style="color: #d32f2f; font-weight: bold; margin-top: 15px;">
-                        ⚠️ Оплатите точную сумму и сохраните скриншот чека
+                    
+                    <div class="payment-details">
+                        <strong>Карта:</strong> <span style="color: #d32f2f; font-weight: bold;">2200 2402 4830 5209</span><br>
+                        <strong>Банк:</strong> <span style="color: #d32f2f; font-weight: bold;">ВТБ</span><br>
+                        <strong>Получатель:</strong> Данил О.<br>
+                        <strong>Сумма к оплате:</strong> <span id="paymentAmount" style="color: #d32f2f; font-weight: bold;">0</span> ₽
+                    </div>
+                    
+                    <p style="color: #d32f2f; font-weight: bold; margin-top: 15px; font-size: 1.1em;">
+                        ⚠️ ОБЯЗАТЕЛЬНО: Оплатите ТОЧНУЮ сумму и сохраните скриншот чека
                     </p>
                 </div>
 
                 <div class="screenshot-upload" onclick="document.getElementById('fileInput').click()">
                     <h3>📎 Прикрепите скриншот чека об оплате</h3>
-                    <p>Нажмите чтобы загрузить фото</p>
+                    <p>Нажмите чтобы загрузить фото чека из приложения ВТБ</p>
                     <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFileUpload(this.files)">
                 </div>
                 <div id="uploadPreview"></div>
@@ -603,7 +698,7 @@
                 <div class="cart-actions">
                     <button class="btn-clear" onclick="showSection('checkout')">← Назад</button>
                     <button class="btn-checkout" id="confirmPaymentBtn" onclick="confirmPayment()" disabled>
-                        ✅ Я оплатил и прикрепил скриншот
+                        ✅ Я оплатил на карту ВТБ и прикрепил скриншот
                     </button>
                 </div>
             </div>
@@ -611,7 +706,7 @@
             <!-- Статус заказа -->
             <div id="orderStatus" class="section">
                 <h2 style="text-align: center; color: #d32f2f;">📦 Статус заказа</h2>
-                <div style="background: #fff3cd; color: #856404; padding: 20px; border-radius: 15px; text-align: center; font-weight: bold; font-size: 1.2em; margin: 20px 0; border: 3px solid #ffeaa7;">
+                <div class="order-status-badge status-pending">
                     Ожидает проверки оплаты...
                 </div>
                 <div class="order-summary" id="finalOrderSummary">
@@ -619,6 +714,9 @@
                 </div>
                 <div class="cart-actions">
                     <button class="btn-checkout" onclick="showSection('catalog')">🛍️ Продолжить покупки</button>
+                    <button class="btn-checkout" onclick="showSection('myOrders')" style="background: linear-gradient(135deg, #2196f3, #21cbf3);">
+                        📦 Мои заказы
+                    </button>
                 </div>
             </div>
 
@@ -821,6 +919,7 @@
             renderProducts();
             selectDelivery('self');
             renderCart();
+            renderUserOrders();
             showNotification('Добро пожаловать в ЖИЖА МАРКЕТ! 🚀', 'success');
         }
 
@@ -835,6 +934,10 @@
             });
             
             document.getElementById(sectionId).classList.add('active');
+            
+            if (sectionId === 'myOrders') {
+                renderUserOrders();
+            }
             
             if (event && event.target) {
                 event.target.classList.add('active');
@@ -1085,6 +1188,75 @@
             }
         }
 
+        // Рендер заказов пользователя
+        function renderUserOrders() {
+            const userOrdersList = document.getElementById('userOrdersList');
+            
+            if (orders.length === 0) {
+                userOrdersList.innerHTML = `
+                    <div class="empty-state">
+                        <i>📦</i>
+                        <h3>У вас пока нет заказов</h3>
+                        <p>Сделайте свой первый заказ в каталоге!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            userOrdersList.innerHTML = '';
+            
+            // Сортируем заказы по дате (новые сверху)
+            const sortedOrders = [...orders].reverse();
+            
+            sortedOrders.forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.className = 'order-summary';
+                orderElement.style.marginBottom = '20px';
+                
+                let statusClass = 'status-pending';
+                let statusText = '⏳ Ожидает подтверждения';
+                
+                if (order.status === 'confirmed') {
+                    statusClass = 'status-confirmed';
+                    statusText = '✅ Подтвержден';
+                } else if (order.status === 'completed') {
+                    statusClass = 'status-completed';
+                    statusText = '🚀 Завершен';
+                }
+                
+                orderElement.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                        <div>
+                            <h3>Заказ #${order.id}</h3>
+                            <p><strong>Время:</strong> ${order.timestamp}</p>
+                            <p><strong>Доставка:</strong> ${order.deliveryType === 'self' ? 'Самовывоз' : 'Доставка'}</p>
+                        </div>
+                        <div class="order-status-badge ${statusClass}">
+                            ${statusText}
+                        </div>
+                    </div>
+                    
+                    <div style="margin: 15px 0;">
+                        <strong>Состав заказа:</strong>
+                        ${Object.keys(order.items).map(productId => {
+                            return `<div style="margin: 5px 0;">• ${products[productId].name} × ${order.items[productId]}</div>`;
+                        }).join('')}
+                    </div>
+                    
+                    <div style="border-top: 2px solid #4caf50; padding-top: 10px; font-size: 1.2em; font-weight: bold;">
+                        Итого: ${order.total} ₽
+                    </div>
+                    
+                    <div style="background: #e8f5e9; padding: 15px; border-radius: 10px; margin-top: 15px;">
+                        <strong>📞 Контакты:</strong><br>
+                        По вопросам заказа пишите в Telegram: <strong>@spank46</strong>
+                    </div>
+                `;
+                
+                userOrdersList.appendChild(orderElement);
+            });
+        }
+
         // Оформление заказа
         function checkout() {
             if (Object.keys(cart).length === 0) {
@@ -1215,7 +1387,7 @@
                 <p><strong>Тип получения:</strong> ${currentOrder.deliveryType === 'self' ? 'Самовывоз' : 'Доставка'}</p>
                 <div style="background: #e8f5e9; padding: 15px; border-radius: 10px; margin-top: 15px;">
                     <strong>📞 Контакты:</strong><br>
-                    Для уточнения деталей заказа свяжитесь с нами в Telegram: @жижамаркет
+                    Для уточнения деталей заказа свяжитесь с нами в Telegram: <strong>@spank46</strong>
                 </div>
             `;
         }
@@ -1235,6 +1407,7 @@ ${Object.keys(order.items).map(productId => {
 }).join('\n')}
 
 👤 Контакты заказчика: ожидают уточнения
+📱 Telegram для связи: @spank46
             `.trim();
 
             try {
@@ -1307,7 +1480,7 @@ ${Object.keys(order.items).map(productId => {
                 orderElement.style.padding = '20px';
                 orderElement.style.borderRadius = '15px';
                 orderElement.style.margin = '15px 0';
-                orderElement.style.border = `3px solid ${order.status === 'completed' ? '#4caf50' : '#ff9800'}`;
+                orderElement.style.border = `3px solid ${order.status === 'completed' ? '#4caf50' : order.status === 'confirmed' ? '#2196f3' : '#ff9800'}`;
 
                 orderElement.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1316,17 +1489,21 @@ ${Object.keys(order.items).map(productId => {
                             <br>
                             <small>${order.timestamp} • ${order.deliveryType === 'self' ? 'Самовывоз' : 'Доставка'}</small>
                             <br>
-                            <span style="color: ${order.status === 'completed' ? '#4caf50' : '#ff9800'}">
-                                ${order.status === 'completed' ? '✅ Выполнен' : '⏳ Ожидает'}
+                            <span style="color: ${order.status === 'completed' ? '#4caf50' : order.status === 'confirmed' ? '#2196f3' : '#ff9800'}">
+                                ${order.status === 'completed' ? '✅ Выполнен' : order.status === 'confirmed' ? '✅ Подтвержден' : '⏳ Ожидает'}
                             </span>
                         </div>
                         <div>
-                            <button onclick="changeOrderStatus('${order.id}', 'completed')" 
-                                    style="padding: 10px 15px; background: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px;">
+                            <button onclick="changeOrderStatus('${order.id}', 'confirmed')" 
+                                    style="padding: 10px 15px; background: #2196f3; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 2px;">
                                 ✅
                             </button>
+                            <button onclick="changeOrderStatus('${order.id}', 'completed')" 
+                                    style="padding: 10px 15px; background: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 2px;">
+                                🚀
+                            </button>
                             <button onclick="deleteOrder('${order.id}')" 
-                                    style="padding: 10px 15px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px;">
+                                    style="padding: 10px 15px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 2px;">
                                 🗑️
                             </button>
                         </div>
