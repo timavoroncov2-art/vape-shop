@@ -640,6 +640,22 @@
                     <h3>Итого: <span id="totalAmount">0</span> ₽</h3>
                     <div id="promoSavings" style="color: #2e7d32; font-weight: bold; margin: 15px 0; font-size: 1.2em;"></div>
                     
+                    <!-- ВЫБОР ДОСТАВКИ -->
+                    <div class="delivery-options">
+                        <div class="delivery-option" onclick="selectDelivery('self')" id="deliverySelf">
+                            <input type="radio" name="delivery" id="radioSelf"> 
+                            <label for="radioSelf"><strong>✅ Самовывоз - БЕСПЛАТНО</strong><br>
+                            <small>Акция: 2 банки = 600₽, 3 банки = 900₽ и т.д.</small></label>
+                        </div>
+                        <div class="delivery-option" onclick="selectDelivery('city')" id="deliveryCity">
+                            <input type="radio" name="delivery" id="radioCity">
+                            <label for="radioCity"><strong>🚚 Доставка: +100 ₽</strong><br>
+                            <small>Без акции - все банки по 400₽</small></label>
+                        </div>
+                    </div>
+                    
+                    <div id="deliveryNote" class="delivery-note"></div>
+                    
                     <div class="cart-actions">
                         <button class="btn-clear" onclick="clearCart()">🗑️ Очистить корзину</button>
                         <button class="btn-checkout" onclick="reserveOrder()">✅ ВЗЯТЬ ЖИЖУ</button>
@@ -652,9 +668,30 @@
                 <h2 style="text-align: center; color: #d32f2f;">📞 Подтверждение заказа</h2>
                 
                 <div class="telegram-contact">
-                    <h3>💬 Напишите в Telegram для оплаты:</h3>
+                    <h3>💬 Оплата и подтверждение:</h3>
+                    
+                    <div class="bank-card">
+                        <h3>💳 БАНКОВСКАЯ КАРТА ВТБ</h3>
+                        <div class="card-number">2200 2402 4830 5209</div>
+                        <div class="bank-info">
+                            <div><strong>Банк:</strong> ВТБ</div>
+                            <div><strong>Получатель:</strong> Данил О.</div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: white; padding: 20px; border-radius: 15px; margin: 20px 0; text-align: left;">
+                        <strong>Инструкция:</strong>
+                        <ol style="margin: 10px 0; padding-left: 20px;">
+                            <li>Оплатите <strong id="reserveTotal">0</strong> ₽ на карту ВТБ</li>
+                            <li>Напишите в Telegram <strong>@spank46</strong></li>
+                            <li>Отправьте скриншот оплаты</li>
+                            <li>Получите код подтверждения</li>
+                            <li>Введите код ниже</li>
+                        </ol>
+                    </div>
+                    
                     <div class="tg-username">@spank46</div>
-                    <p>Отправьте скриншот вашего заказа и мы вышлем код подтверждения</p>
+                    <p>Напишите нам после оплаты для получения кода</p>
                 </div>
 
                 <div class="order-summary" id="reserveSummary">
@@ -715,17 +752,6 @@
                             <div style="font-size: 2.5em; font-weight: bold; color: #2196f3;" id="completedOrders">0</div>
                             <div>Завершено</div>
                         </div>
-                    </div>
-
-                    <div style="background: #455a64; padding: 20px; border-radius: 15px; margin: 20px 0;">
-                        <h3>🎫 Генератор кодов</h3>
-                        <div style="display: flex; gap: 10px; margin: 15px 0;">
-                            <input type="text" id="orderIdInput" placeholder="ID заказа" 
-                                   style="flex: 1; padding: 12px; border-radius: 8px; border: 2px solid #37474f;">
-                            <button class="btn-checkout" onclick="generateConfirmationCode()" 
-                                    style="padding: 12px 20px;">Сгенерировать код</button>
-                        </div>
-                        <div id="generatedCode" style="font-size: 1.5em; font-weight: bold; text-align: center; margin: 10px 0; color: #4caf50;"></div>
                     </div>
 
                     <div id="ordersList">
@@ -884,6 +910,8 @@
         let orders = [];
         let currentOrder = null;
         let isAdminLoggedIn = false;
+        let deliveryType = 'self';
+        let deliveryCost = 0;
         let confirmationCodes = JSON.parse(localStorage.getItem('confirmationCodes')) || {};
 
         // Инициализация
@@ -892,6 +920,7 @@
             loadCart();
             loadAllOrders();
             renderProducts();
+            selectDelivery('self');
             renderCart();
             renderUserOrders();
             showNotification('Добро пожаловать в ЖИЖА МАРКЕТ! 🚀', 'success');
@@ -979,6 +1008,28 @@
             } else {
                 showNotification('Неверный пароль! ❌', 'error');
             }
+        }
+
+        // Выбор доставки
+        function selectDelivery(type) {
+            deliveryType = type;
+            deliveryCost = type === 'city' ? 100 : 0;
+            
+            document.getElementById('deliverySelf').classList.toggle('selected', type === 'self');
+            document.getElementById('deliveryCity').classList.toggle('selected', type === 'city');
+            
+            document.getElementById('radioSelf').checked = type === 'self';
+            document.getElementById('radioCity').checked = type === 'city';
+            
+            // Показываем информацию о скидке
+            const deliveryNote = document.getElementById('deliveryNote');
+            if (type === 'self') {
+                deliveryNote.innerHTML = '🎉 <strong>Акция активна!</strong> 2 банки = 600₽, 3 банки = 900₽ и т.д.';
+            } else {
+                deliveryNote.innerHTML = '⚠️ <strong>Акция не действует</strong> при доставке - все банки по 400₽';
+            }
+            
+            renderCart();
         }
 
         // Рендер товаров
@@ -1099,7 +1150,7 @@
             }
         }
 
-        // Расчет стоимости с акцией
+        // Расчет стоимости с учетом акции и доставки
         function calculateTotal() {
             let total = 0;
             let itemCount = 0;
@@ -1108,11 +1159,18 @@
                 const quantity = cart[productId];
                 const price = products[productId].price;
                 
-                // Акция: 1=400, 2=600, 3=900, 4=1200, 5=1500 и т.д.
-                total += Math.floor(quantity / 5) * 1500 + calculatePromoPrice(quantity % 5);
+                if (deliveryType === 'self') {
+                    // Акция: 1=400, 2=600, 3=900, 4=1200, 5=1500 и т.д.
+                    total += Math.floor(quantity / 5) * 1500 + calculatePromoPrice(quantity % 5);
+                } else {
+                    // Без акции при доставке
+                    total += quantity * price;
+                }
+                
                 itemCount += quantity;
             });
             
+            total += deliveryCost;
             return { total, itemCount };
         }
 
@@ -1142,6 +1200,7 @@
             
             cartItems.innerHTML = '';
             let regularPrice = 0;
+            let promoPrice = 0;
             
             Object.keys(cart).forEach(productId => {
                 const product = products[productId];
@@ -1170,16 +1229,97 @@
             totalAmount.textContent = total;
             
             // Показываем экономию по акции
-            if (itemCount >= 2) {
-                const savings = regularPrice - total;
+            if (deliveryType === 'self' && itemCount >= 2) {
+                const savings = regularPrice - total + deliveryCost;
                 if (savings > 0) {
-                    promoSavings.innerHTML = `🎉 Вы экономите: ${savings} ₽ (Акция!)`;
+                    promoSavings.innerHTML = `🎉 Вы экономите: ${savings} ₽`;
                 } else {
                     promoSavings.innerHTML = '';
                 }
             } else {
                 promoSavings.innerHTML = '';
             }
+        }
+
+        // Генерация ID устройства
+        function getDeviceId() {
+            let deviceId = localStorage.getItem('deviceId');
+            if (!deviceId) {
+                deviceId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('deviceId', deviceId);
+            }
+            return deviceId;
+        }
+
+        // Рендер заказов пользователя
+        function renderUserOrders() {
+            const userOrdersList = document.getElementById('userOrdersList');
+            const userOrders = orders.filter(order => order.userDevice === getDeviceId());
+            
+            if (userOrders.length === 0) {
+                userOrdersList.innerHTML = `
+                    <div class="empty-state">
+                        <i>📦</i>
+                        <h3>У вас пока нет заказов</h3>
+                        <p>Сделайте свой первый заказ в каталоге!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            userOrdersList.innerHTML = '';
+            const sortedOrders = [...userOrders].reverse();
+            
+            sortedOrders.forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.className = 'order-summary';
+                orderElement.style.marginBottom = '20px';
+                
+                let statusClass = 'status-pending';
+                let statusText = '⏳ Ожидает подтверждения';
+                
+                if (order.status === 'confirmed') {
+                    statusClass = 'status-confirmed';
+                    statusText = '✅ Подтвержден';
+                } else if (order.status === 'completed') {
+                    statusClass = 'status-completed';
+                    statusText = '🚀 Завершен';
+                } else if (order.status === 'cancelled') {
+                    statusClass = 'status-cancelled';
+                    statusText = '❌ Отменен';
+                }
+                
+                orderElement.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                        <div>
+                            <h3>Заказ #${order.id}</h3>
+                            <p><strong>Время:</strong> ${order.timestamp}</p>
+                            <p><strong>Доставка:</strong> ${order.deliveryType === 'self' ? 'Самовывоз' : 'Доставка'}</p>
+                        </div>
+                        <div class="order-status-badge ${statusClass}">
+                            ${statusText}
+                        </div>
+                    </div>
+                    
+                    <div style="margin: 15px 0;">
+                        <strong>Состав заказа:</strong>
+                        ${Object.keys(order.items).map(productId => {
+                            return `<div style="margin: 5px 0;">• ${products[productId].name} × ${order.items[productId]}</div>`;
+                        }).join('')}
+                    </div>
+                    
+                    <div style="border-top: 2px solid #4caf50; padding-top: 10px; font-size: 1.2em; font-weight: bold;">
+                        Итого: ${order.total} ₽
+                    </div>
+                    
+                    <div style="background: #e8f5e9; padding: 15px; border-radius: 10px; margin-top: 15px;">
+                        <strong>📞 Контакты:</strong><br>
+                        По вопросам заказа пишите в Telegram: <strong>@spank46</strong>
+                    </div>
+                `;
+                
+                userOrdersList.appendChild(orderElement);
+            });
         }
 
         // Резервирование заказа
@@ -1192,20 +1332,31 @@
             const { total, itemCount } = calculateTotal();
             const orderId = 'ORD' + Date.now();
             
+            // Генерируем код подтверждения
+            const confirmationCode = Math.floor(1000 + Math.random() * 9000).toString();
+            
             currentOrder = {
                 id: orderId,
                 items: { ...cart },
                 total: total,
                 itemCount: itemCount,
+                deliveryType: deliveryType,
+                deliveryCost: deliveryCost,
                 timestamp: new Date().toLocaleString('ru-RU'),
-                status: 'reserved'
+                status: 'reserved',
+                userDevice: getDeviceId(),
+                confirmationCode: confirmationCode
             };
+
+            // Сохраняем код подтверждения
+            confirmationCodes[orderId] = confirmationCode;
+            saveConfirmationCodes();
 
             // Показываем детали заказа
             showSection('reserve');
             renderReserveSummary();
             
-            // Отправляем уведомление в Telegram
+            // Отправляем уведомление в Telegram с кодом
             sendReservationToTelegram(currentOrder);
             
             showNotification('✅ Заказ зарезервирован! Напишите в Telegram для оплаты.', 'success');
@@ -1213,11 +1364,14 @@
 
         function renderReserveSummary() {
             const reserveSummary = document.getElementById('reserveSummary');
+            document.getElementById('reserveTotal').textContent = currentOrder.total;
+            
             let summaryHTML = `
                 <h3>Ваш заказ:</h3>
                 <div style="margin: 20px 0;">
                     <strong>Номер заказа:</strong> ${currentOrder.id} <br>
                     <strong>Количество товаров:</strong> ${currentOrder.itemCount} шт. <br>
+                    <strong>Тип доставки:</strong> ${currentOrder.deliveryType === 'self' ? 'Самовывоз' : 'Доставка'} <br>
                     <strong>Итоговая сумма:</strong> ${currentOrder.total} ₽
                 </div>
                 <h4>Состав заказа:</h4>
@@ -1247,11 +1401,7 @@
             }
 
             // Проверяем код
-            const orderId = Object.keys(confirmationCodes).find(
-                orderId => confirmationCodes[orderId] === code
-            );
-
-            if (orderId && orderId === currentOrder.id) {
+            if (currentOrder && code === currentOrder.confirmationCode) {
                 // Списание товаров
                 Object.keys(currentOrder.items).forEach(productId => {
                     products[productId].stock -= currentOrder.items[productId];
@@ -1265,7 +1415,7 @@
                 saveProducts();
 
                 // Удаляем использованный код
-                delete confirmationCodes[orderId];
+                delete confirmationCodes[currentOrder.id];
                 saveConfirmationCodes();
 
                 // Очищаем корзину
@@ -1281,49 +1431,29 @@
             }
         }
 
-        // Генерация кода подтверждения (для админа)
-        function generateConfirmationCode() {
-            const orderId = document.getElementById('orderIdInput').value;
-            
-            if (!orderId) {
-                showNotification('❌ Введите ID заказа!', 'error');
-                return;
-            }
-
-            // Генерируем случайный 4-значный код
-            const code = Math.floor(1000 + Math.random() * 9000).toString();
-            
-            // Сохраняем код
-            confirmationCodes[orderId] = code;
-            saveConfirmationCodes();
-
-            // Показываем код
-            document.getElementById('generatedCode').innerHTML = `
-                Код для заказа ${orderId}: <span style="color: #ffd600; font-size: 2em;">${code}</span>
-            `;
-
-            // Отправляем код в Telegram
-            sendCodeToTelegram(orderId, code);
-            
-            showNotification('✅ Код сгенерирован и отправлен в Telegram!', 'success');
-        }
-
-        // Отправка уведомления о резервировании в Telegram
+        // Отправка уведомления о резервировании в Telegram с кодом
         async function sendReservationToTelegram(order) {
             const message = `
 🛒 НОВЫЙ ЗАКАЗ #${order.id}
 
 💰 Сумма: ${order.total} ₽
 📦 Количество: ${order.itemCount} шт.
+🚚 Доставка: ${order.deliveryType === 'self' ? 'Самовывоз' : 'Доставка (+100₽)'}
 ⏰ Время: ${order.timestamp}
+
+🎫 КОД ПОДТВЕРЖДЕНИЯ: ${order.confirmationCode}
 
 📋 Состав заказа:
 ${Object.keys(order.items).map(productId => {
     return `• ${products[productId].name} × ${order.items[productId]}`
 }).join('\n')}
 
-💬 Ожидает оплаты и кода подтверждения
-👤 Клиент ждет код в Telegram
+💳 РЕКВИЗИТЫ ДЛЯ ОПЛАТЫ:
+Карта: 2200 2402 4830 5209
+Банк: ВТБ
+Получатель: Данил О.
+
+💬 Сообщите код клиенту после оплаты
             `.trim();
 
             try {
@@ -1342,35 +1472,107 @@ ${Object.keys(order.items).map(productId => {
             }
         }
 
-        // Отправка кода подтверждения в Telegram
-        async function sendCodeToTelegram(orderId, code) {
-            const message = `
-🎫 КОД ПОДТВЕРЖДЕНИЯ
+        // Админ статистика
+        function renderAdminStats() {
+            if (!isAdminLoggedIn) return;
 
-📦 Заказ: #${orderId}
-🔑 Код: ${code}
+            const allOrders = orders;
+            const totalOrders = allOrders.length;
+            const totalRevenue = allOrders.reduce((sum, order) => sum + order.total, 0);
+            const completedOrders = allOrders.filter(order => order.status === 'completed').length;
 
-💡 Сообщите этот код клиенту для подтверждения заказа
-            `.trim();
+            document.getElementById('totalOrders').textContent = totalOrders;
+            document.getElementById('totalRevenue').textContent = totalRevenue + ' ₽';
+            document.getElementById('completedOrders').textContent = completedOrders;
 
-            try {
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: TELEGRAM_GROUP_ID,
-                        text: message,
-                        parse_mode: 'HTML'
-                    })
+            const ordersList = document.getElementById('ordersList');
+            ordersList.innerHTML = '<h3>Все заказы (со всех устройств):</h3>';
+
+            if (allOrders.length === 0) {
+                ordersList.innerHTML += '<p style="text-align: center; padding: 20px;">Заказов пока нет</p>';
+                return;
+            }
+
+            allOrders.reverse().forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.style.background = '#455a64';
+                orderElement.style.padding = '20px';
+                orderElement.style.borderRadius = '15px';
+                orderElement.style.margin = '15px 0';
+                orderElement.style.border = `3px solid ${
+                    order.status === 'completed' ? '#4caf50' : 
+                    order.status === 'confirmed' ? '#2196f3' : 
+                    order.status === 'cancelled' ? '#f44336' : '#ff9800'
+                }`;
+
+                let orderDetails = '';
+                Object.keys(order.items).forEach(productId => {
+                    const productName = products[productId] ? products[productId].name : productId;
+                    orderDetails += `<div style="margin: 3px 0;">• ${productName} × ${order.items[productId]}</div>`;
                 });
 
-            } catch (error) {
-                console.error('Ошибка отправки в Telegram:', error);
-            }
+                orderElement.innerHTML = `
+                    <div style="margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div>
+                                <strong style="font-size: 1.2em;">#${order.id}</strong> - ${order.total} ₽
+                            </div>
+                            <span style="color: ${
+                                order.status === 'completed' ? '#4caf50' : 
+                                order.status === 'confirmed' ? '#2196f3' : 
+                                order.status === 'cancelled' ? '#f44336' : '#ff9800'
+                            }; font-weight: bold;">
+                                ${order.status === 'completed' ? '✅ Выполнен' : 
+                                  order.status === 'confirmed' ? '✅ Подтвержден' : 
+                                  order.status === 'cancelled' ? '❌ Отменен' : '⏳ Ожидает'}
+                            </span>
+                        </div>
+                        <div style="color: #ccc; font-size: 0.9em;">
+                            <div>📅 ${order.timestamp}</div>
+                            <div>🚚 ${order.deliveryType === 'self' ? 'Самовывоз' : 'Доставка (+100₽)'}</div>
+                            <div>📱 Устройство: ${order.userDevice || 'не указано'}</div>
+                            ${order.confirmationCode ? `<div>🔑 Код: ${order.confirmationCode}</div>` : ''}
+                        </div>
+                    </div>
+                    
+                    <div style="background: #37474f; padding: 15px; border-radius: 10px; margin: 10px 0;">
+                        <strong style="color: #fff;">Состав заказа:</strong>
+                        ${orderDetails}
+                    </div>
+                `;
+
+                ordersList.appendChild(orderElement);
+            });
         }
 
-        // Остальные функции (renderUserOrders, renderAdminStats и т.д.) остаются аналогичными предыдущей версии
-        // ... (они будут в следующем сообщении из-за ограничения длины)
+        // Уведомления
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 4000);
+        }
+
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            init().then(() => {
+                setupOrdersListener();
+            });
+        });
+
+        function setupOrdersListener() {
+            // Слушатель для обновления заказов
+            setInterval(() => {
+                loadAllOrders();
+                if (isAdminLoggedIn) {
+                    renderAdminStats();
+                }
+            }, 5000);
+        }
 
     </script>
 </body>
