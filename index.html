@@ -598,6 +598,15 @@
             margin: 15px 0;
             color: #fff;
         }
+
+        .token-setup {
+            background: linear-gradient(135deg, #ff6b6b, #ffa726);
+            color: white;
+            padding: 30px;
+            border-radius: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -610,6 +619,26 @@
 
         <div class="promo-banner">
             🎉 ВЫГОДНАЯ АКЦИЯ: 1=400₽ • 2=600₽ • 3=900₽ • 4=1200₽ • 5=1500₽
+        </div>
+
+        <!-- НАСТРОЙКА ТОКЕНА -->
+        <div id="tokenSetup" class="token-setup" style="display: none;">
+            <h2>🔐 Настройка автоматического списания</h2>
+            <p>Для работы автоматического списания товаров необходимо настроить доступ к GitHub</p>
+            <div style="background: white; color: #333; padding: 20px; border-radius: 15px; margin: 20px 0; text-align: left;">
+                <h3>Инструкция:</h3>
+                <ol>
+                    <li>Зайдите в <strong>GitHub Settings → Developer settings → Personal access tokens</strong></li>
+                    <li>Создайте новый токен с правами <strong>repo</strong></li>
+                    <li>Скопируйте токен и вставьте ниже</li>
+                </ol>
+                <input type="password" id="githubTokenInput" placeholder="Введите GitHub токен" 
+                       style="width: 100%; padding: 15px; margin: 15px 0; border: 2px solid #4caf50; border-radius: 10px; font-size: 16px;">
+                <button onclick="saveGitHubToken()" 
+                        style="width: 100%; padding: 15px; background: #4caf50; color: white; border: none; border-radius: 10px; font-size: 18px; cursor: pointer;">
+                    ✅ Сохранить токен
+                </button>
+            </div>
         </div>
 
         <div class="nav">
@@ -646,7 +675,7 @@
                         <div class="delivery-option" onclick="selectDelivery('self')" id="deliverySelf">
                             <input type="radio" name="delivery" id="radioSelf"> 
                             <label for="radioSelf"><strong>✅ Самовывоз - БЕСПЛАТНО</strong><br>
-                            <small>ул. Ленина, 82, Новопышминское, Свердловская обл.</small></label>
+                            <small>Акция: 2 банки = 600₽, 3 банки = 900₽ и т.д.</small></label>
                         </div>
                         <div class="delivery-option" onclick="selectDelivery('city')" id="deliveryCity">
                             <input type="radio" name="delivery" id="radioCity">
@@ -779,16 +808,140 @@
     <div class="notification" id="notification"></div>
 
     <script>
-        // Конфигурация Telegram
+        // === КОНФИГУРАЦИЯ ===
         const TELEGRAM_BOT_TOKEN = '8368198224:AAFal9lXTHHIRD4rn-d0FqeVBKpVQrng88M';
-        const TELEGRAM_CHAT_ID = '1423502260';
         const TELEGRAM_GROUP_ID = '-1003277435312';
-        const FRIEND_CHAT_ID = '6007551643';
-
-        // Админ пароль
         const ADMIN_PASSWORD = 'admin123';
+        const DATA_FILE_URL = 'https://raw.githubusercontent.com/timavoroncov2-art/vape-shop/main/products.json';
 
-        // БАЗОВЫЕ ДАННЫЕ ТОВАРОВ - ВСЕ В НАЛИЧИИ!
+        // Глобальные переменные
+        let GITHUB_TOKEN = null;
+        let products = {};
+        let cart = {};
+        let orders = [];
+        let currentOrder = null;
+        let isAdminLoggedIn = false;
+        let deliveryType = 'self';
+        let deliveryCost = 0;
+        let confirmationCodes = JSON.parse(localStorage.getItem('confirmationCodes')) || {};
+
+        // === БЕЗОПАСНАЯ СИСТЕМА ТОКЕНОВ ===
+        function setupGitHubToken() {
+            GITHUB_TOKEN = localStorage.getItem('github_token');
+            
+            if (!GITHUB_TOKEN) {
+                // Показываем настройку токена
+                document.getElementById('tokenSetup').style.display = 'block';
+                document.querySelector('.nav').style.display = 'none';
+                document.querySelector('.content').style.display = 'none';
+            } else {
+                // Токен есть, запускаем магазин
+                document.getElementById('tokenSetup').style.display = 'none';
+                document.querySelector('.nav').style.display = 'flex';
+                document.querySelector('.content').style.display = 'block';
+                init();
+            }
+        }
+
+        function saveGitHubToken() {
+            const tokenInput = document.getElementById('githubTokenInput');
+            const token = tokenInput.value.trim();
+            
+            if (!token) {
+                showNotification('❌ Введите токен!', 'error');
+                return;
+            }
+            
+            if (!token.startsWith('ghp_')) {
+                showNotification('❌ Неверный формат токена!', 'error');
+                return;
+            }
+            
+            localStorage.setItem('github_token', token);
+            GITHUB_TOKEN = token;
+            showNotification('✅ Токен сохранен! Запускаем магазин...', 'success');
+            
+            setTimeout(() => {
+                document.getElementById('tokenSetup').style.display = 'none';
+                document.querySelector('.nav').style.display = 'flex';
+                document.querySelector('.content').style.display = 'block';
+                init();
+            }, 2000);
+        }
+
+        // === АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ ОСТАТКОВ НА GITHUB ===
+        async function updateStockOnGitHub(productId, newStock) {
+            if (!GITHUB_TOKEN) {
+                showNotification('❌ Токен не настроен!', 'error');
+                return false;
+            }
+
+            try {
+                // 1. Получаем текущий файл и его SHA
+                const getResponse = await fetch(`https://api.github.com/repos/timavoroncov2-art/vape-shop/contents/products.json`, {
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                
+                if (!getResponse.ok) {
+                    throw new Error('Ошибка доступа к GitHub');
+                }
+                
+                const fileData = await getResponse.json();
+                const fileSha = fileData.sha;
+                const currentContent = JSON.parse(atob(fileData.content));
+                
+                // 2. Обновляем остаток
+                currentContent.products[productId].stock = newStock;
+                currentContent.lastUpdated = new Date().toISOString();
+                
+                // 3. Кодируем обратно в base64
+                const updatedContent = btoa(JSON.stringify(currentContent, null, 2));
+                
+                // 4. Отправляем обновление на GitHub
+                const updateResponse = await fetch(`https://api.github.com/repos/timavoroncov2-art/vape-shop/contents/products.json`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: `Автосписание: ${products[productId].name} → ${newStock} шт`,
+                        content: updatedContent,
+                        sha: fileSha
+                    })
+                });
+                
+                if (updateResponse.ok) {
+                    console.log('✅ Остаток обновлен на GitHub');
+                    return true;
+                } else {
+                    const error = await updateResponse.json();
+                    console.error('❌ Ошибка обновления:', error);
+                    
+                    if (error.message?.includes('bad credentials')) {
+                        showNotification('❌ Неверный токен! Настройте заново.', 'error');
+                        localStorage.removeItem('github_token');
+                        setupGitHubToken();
+                    }
+                    return false;
+                }
+                
+            } catch (error) {
+                console.error('❌ Ошибка:', error);
+                showNotification('❌ Ошибка соединения с GitHub', 'error');
+                return false;
+            }
+        }
+
+        // === ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ ===
+        // ... (все остальные функции из предыдущего кода остаются без изменений)
+        // loadProductData, confirmWithCode, resetAllProducts, init, и все остальные...
+
+        // БАЗОВЫЕ ДАННЫЕ ТОВАРОВ
         const baseProducts = {
             "delta_chicken": { 
                 name: "D.L.T.A. - Грудка и корица", 
@@ -887,7 +1040,7 @@
                 category: "malasian",
                 icon: "🍒",
                 description: "Насыщенный вишневый сок с нотами вишневого листа",
-                ingredients: "Вишня, вишневый листа, ягоды"
+                ingredients: "Вишня, вишневый лист, ягоды"
             },
             "malasian_raspberry": { 
                 name: "MALASIAN - Малина банан", 
@@ -909,85 +1062,137 @@
             }
         };
 
-        // Корзина и заказы
-        let products = {};
-        let cart = {};
-        let orders = [];
-        let currentOrder = null;
-        let isAdminLoggedIn = false;
-        let deliveryType = 'self';
-        let deliveryCost = 0;
-        let confirmationCodes = JSON.parse(localStorage.getItem('confirmationCodes')) || {};
+        // === ЗАГРУЗКА ДАННЫХ С GITHUB ===
+        async function loadProductData() {
+            try {
+                const response = await fetch(DATA_FILE_URL + '?t=' + Date.now());
+                const data = await response.json();
+                
+                // Обновляем объект products
+                Object.keys(data.products).forEach(productId => {
+                    if (products[productId]) {
+                        products[productId].stock = data.products[productId].stock;
+                    } else {
+                        products[productId] = data.products[productId];
+                    }
+                });
+                
+                renderProducts();
+                return true;
+            } catch (error) {
+                console.error('Ошибка загрузки данных:', error);
+                // Используем базовые данные если не удалось загрузить
+                products = JSON.parse(JSON.stringify(baseProducts));
+                renderProducts();
+                showNotification('⚠️ Используются локальные данные', 'error');
+                return false;
+            }
+        }
 
-        // Инициализация
-        function init() {
-            loadGlobalProducts(); // Загружаем глобальное состояние товаров
+        // === ОБНОВЛЁННАЯ ФУНКЦИЯ ПОДТВЕРЖДЕНИЯ ЗАКАЗА ===
+        async function confirmWithCode() {
+            const code = document.getElementById('confirmationCode').value;
+            
+            if (!code || code.length !== 4) {
+                showNotification('❌ Введите код из 4 цифр!', 'error');
+                return;
+            }
+
+            if (currentOrder && code === currentOrder.confirmationCode) {
+                showNotification('🔄 Списание товаров...', 'success');
+                
+                // Списание товаров и АВТОМАТИЧЕСКОЕ обновление на GitHub
+                let allUpdated = true;
+                
+                for (const productId in currentOrder.items) {
+                    const quantity = currentOrder.items[productId];
+                    const newStock = products[productId].stock - quantity;
+                    
+                    // 1. Обновляем локально
+                    products[productId].stock = newStock;
+                    
+                    // 2. АВТОМАТИЧЕСКИ обновляем на GitHub
+                    const success = await updateStockOnGitHub(productId, newStock);
+                    if (!success) {
+                        allUpdated = false;
+                    }
+                    
+                    // Небольшая задержка между запросами
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                if (allUpdated) {
+                    // Сохраняем заказ
+                    currentOrder.status = 'completed';
+                    currentOrder.confirmedAt = new Date().toLocaleString('ru-RU');
+                    orders.push(currentOrder);
+                    saveAllOrders();
+
+                    // Очищаем корзину
+                    cart = {};
+                    saveCart();
+
+                    showNotification('🎉 Заказ подтвержден! Товары списаны у всех пользователей!', 'success');
+                    showSection('catalog');
+                    renderProducts();
+                } else {
+                    showNotification('⚠️ Заказ подтвержден, но были ошибки синхронизации', 'error');
+                }
+                
+            } else {
+                showNotification('❌ Неверный код подтверждения!', 'error');
+            }
+        }
+
+        // === ОБНОВЛЁННАЯ ФУНКЦИЯ СБРОСА ===
+        async function resetAllProducts() {
+            if (!confirm('Вернуть все товары в продажу? Это сбросит все остатки.')) return;
+            
+            try {
+                let allUpdated = true;
+                
+                for (const productId in products) {
+                    // АВТОМАТИЧЕСКИ обновляем на GitHub
+                    const success = await updateStockOnGitHub(productId, 1);
+                    if (!success) {
+                        allUpdated = false;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                if (allUpdated) {
+                    // Обновляем локально
+                    await loadProductData();
+                    
+                    // Очищаем заказы
+                    orders = [];
+                    saveAllOrders();
+                    
+                    showNotification('✅ Все товары возвращены в продажу!', 'success');
+                } else {
+                    showNotification('⚠️ Сброс выполнен, но были ошибки синхронизации', 'error');
+                }
+                
+            } catch (error) {
+                showNotification('❌ Ошибка сброса', 'error');
+            }
+        }
+
+        // === ОБНОВЛЁННАЯ ИНИЦИАЛИЗАЦИЯ ===
+        async function init() {
+            await loadProductData();
             loadCart();
             loadAllOrders();
-            renderProducts();
             selectDelivery('self');
             renderCart();
             renderUserOrders();
-            showNotification('Добро пожаловать в ЖИЖА МАРКЕТ! Все товары в наличии! 🚀', 'success');
             
-            // Запускаем синхронизацию товаров
-            startProductsSync();
-        }
-
-        // ЗАГРУЗКА ГЛОБАЛЬНОГО СОСТОЯНИЯ ТОВАРОВ
-        function loadGlobalProducts() {
-            const globalProducts = localStorage.getItem('global_products');
-            if (globalProducts) {
-                products = JSON.parse(globalProducts);
-            } else {
-                // Если нет глобальных товаров, создаем из базовых
-                products = JSON.parse(JSON.stringify(baseProducts));
-                saveGlobalProducts();
-            }
-        }
-
-        // СОХРАНЕНИЕ ГЛОБАЛЬНОГО СОСТОЯНИЯ ТОВАРОВ
-        function saveGlobalProducts() {
-            localStorage.setItem('global_products', JSON.stringify(products));
-        }
-
-        // СИНХРОНИЗАЦИЯ ТОВАРОВ МЕЖДУ ВКЛАДКАМИ
-        function startProductsSync() {
-            // Слушаем изменения в localStorage
-            window.addEventListener('storage', function(e) {
-                if (e.key === 'global_products') {
-                    loadGlobalProducts();
-                    renderProducts();
-                    renderCart();
-                    showNotification('🔄 Обновлены данные о товарах', 'success');
-                }
-            });
-            
-            // Периодически проверяем обновления
+            // Обновляем данные каждые 10 секунд
             setInterval(() => {
-                loadGlobalProducts();
-                renderProducts();
-            }, 3000);
-        }
-
-        // ФУНКЦИЯ СБРОСА ВСЕХ ТОВАРОВ
-        function resetAllProducts() {
-            products = JSON.parse(JSON.stringify(baseProducts)); // Копируем базовые товары
-            saveGlobalProducts(); // Сохраняем глобально
-            // Очищаем корзину и заказы
-            cart = {};
-            orders = [];
-            confirmationCodes = {};
-            saveCart();
-            saveAllOrders();
-            saveConfirmationCodes();
+                loadProductData();
+            }, 10000);
             
-            renderProducts();
-            renderCart();
-            if (isAdminLoggedIn) {
-                renderAdminStats();
-            }
-            showNotification('✅ Все товары возвращены в продажу! Магазин сброшен.', 'success');
+            showNotification('Магазин загружен! Данные обновляются автоматически 🚀', 'success');
         }
 
         // Загрузка всех заказов
@@ -1004,6 +1209,21 @@
         // Сохранение кодов подтверждения
         function saveConfirmationCodes() {
             localStorage.setItem('confirmationCodes', JSON.stringify(confirmationCodes));
+        }
+
+        // Загрузка продуктов
+        function loadProducts() {
+            const savedProducts = localStorage.getItem('products');
+            if (savedProducts) {
+                products = JSON.parse(savedProducts);
+            } else {
+                products = JSON.parse(JSON.stringify(baseProducts));
+            }
+        }
+
+        // Сохранение продуктов
+        function saveProducts() {
+            localStorage.setItem('products', JSON.stringify(products));
         }
 
         // Показать раздел
@@ -1090,6 +1310,7 @@
 
             Object.keys(products).forEach(productId => {
                 const product = products[productId];
+                
                 const productCard = document.createElement('div');
                 productCard.className = `product-card ${product.category}`;
                 
@@ -1125,12 +1346,8 @@
 
         // Добавление в корзину
         function addToCart(productId) {
-            // ПЕРЕД добавлением проверяем актуальное состояние товара
-            loadGlobalProducts();
-            
             if (products[productId].stock === 0) {
                 showNotification('❌ Этот товар закончился!', 'error');
-                renderProducts(); // Обновляем отображение
                 return;
             }
 
@@ -1180,9 +1397,6 @@
                     return;
                 }
                 
-                // ПЕРЕД изменением проверяем актуальное состояние
-                loadGlobalProducts();
-                
                 if (newQuantity > products[productId].stock) {
                     showNotification(`❌ Максимальное количество: ${products[productId].stock} шт.`, 'error');
                     return;
@@ -1208,19 +1422,16 @@
             }
         }
 
-        // ИСПРАВЛЕННАЯ функция расчета стоимости с акцией
+        // Расчет стоимости с акцией
         function calculateTotal() {
             let total = 0;
             let itemCount = 0;
             
-            // Считаем общее количество товаров в корзине
             Object.keys(cart).forEach(productId => {
                 itemCount += cart[productId];
             });
             
-            // Применяем акцию только для самовывоза
             if (deliveryType === 'self') {
-                // Акция: 1=400, 2=600, 3=900, 4=1200, 5=1500 и т.д.
                 if (itemCount === 1) total = 400;
                 else if (itemCount === 2) total = 600;
                 else if (itemCount === 3) total = 900;
@@ -1231,9 +1442,8 @@
                 else if (itemCount === 8) total = 2400;
                 else if (itemCount === 9) total = 2700;
                 else if (itemCount === 10) total = 3000;
-                else total = itemCount * 300; // 300₽ за банку при большом количестве
+                else total = itemCount * 300;
             } else {
-                // Без акции при доставке - все по 400₽
                 total = itemCount * 400;
             }
             
@@ -1289,7 +1499,6 @@
             const { total, itemCount } = calculateTotal();
             totalAmount.textContent = total;
             
-            // Показываем экономию по акции
             if (deliveryType === 'self' && itemCount >= 2) {
                 const savings = regularPrice - total;
                 if (savings > 0) {
@@ -1390,19 +1599,6 @@
                 return;
             }
 
-            // ПЕРЕД созданием заказа проверяем актуальность товаров
-            loadGlobalProducts();
-            
-            // Проверяем, что все товары еще в наличии
-            for (const productId in cart) {
-                if (products[productId].stock < cart[productId]) {
-                    showNotification(`❌ Товар "${products[productId].name}" закончился! Обновите корзину.`, 'error');
-                    renderProducts();
-                    renderCart();
-                    return;
-                }
-            }
-
             const { total, itemCount } = calculateTotal();
             const orderId = 'ORD' + Date.now();
             
@@ -1463,59 +1659,6 @@
             });
             
             reserveSummary.innerHTML = summaryHTML;
-        }
-
-        // Подтверждение заказа по коду
-        function confirmWithCode() {
-            const code = document.getElementById('confirmationCode').value;
-            
-            if (!code || code.length !== 4) {
-                showNotification('❌ Введите код из 4 цифр!', 'error');
-                return;
-            }
-
-            // Проверяем код
-            if (currentOrder && code === currentOrder.confirmationCode) {
-                // ПЕРЕД списанием проверяем актуальность товаров
-                loadGlobalProducts();
-                
-                // Проверяем, что все товары еще в наличии
-                for (const productId in currentOrder.items) {
-                    if (products[productId].stock < currentOrder.items[productId]) {
-                        showNotification(`❌ Товар "${products[productId].name}" закончился! Заказ отменен.`, 'error');
-                        return;
-                    }
-                }
-                
-                // Списание товаров
-                Object.keys(currentOrder.items).forEach(productId => {
-                    products[productId].stock -= currentOrder.items[productId];
-                });
-
-                // Сохраняем ГЛОБАЛЬНОЕ состояние товаров
-                saveGlobalProducts();
-
-                // Сохраняем заказ
-                currentOrder.status = 'completed';
-                currentOrder.confirmedAt = new Date().toLocaleString('ru-RU');
-                orders.push(currentOrder);
-                saveAllOrders();
-
-                // Удаляем использованный код
-                delete confirmationCodes[currentOrder.id];
-                saveConfirmationCodes();
-
-                // Очищаем корзину
-                cart = {};
-                saveCart();
-
-                showNotification('🎉 Заказ подтвержден! Товары списаны.', 'success');
-                showSection('catalog');
-                renderProducts();
-                
-            } else {
-                showNotification('❌ Неверный код подтверждения!', 'error');
-            }
         }
 
         // Отправка уведомления о резервировании в Telegram с кодом
@@ -1606,7 +1749,7 @@ ${Object.keys(order.items).map(productId => {
                             </div>
                             <span style="color: ${
                                 order.status === 'completed' ? '#4caf50' : 
-                                order.status === 'confirmed' ? '#2196f3' : 
+                                order.status === 'confirmed' => '#2196f3' : 
                                 order.status === 'cancelled' ? '#f44336' : '#ff9800'
                             }; font-weight: bold;">
                                 ${order.status === 'completed' ? '✅ Выполнен' : 
@@ -1646,7 +1789,7 @@ ${Object.keys(order.items).map(productId => {
 
         // Инициализация при загрузке
         document.addEventListener('DOMContentLoaded', function() {
-            init();
+            setupGitHubToken();
         });
 
     </script>
